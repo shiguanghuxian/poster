@@ -18,8 +18,15 @@ type HTTPTransport struct {
 // NewHTTPTransport 创建http接口对象
 func NewHTTPTransport(cfg *config.HTTPConfig) *HTTPTransport {
 	if cfg.Port < 0 {
-		cfg.Port = 80
+		cfg.Port = 11260
 	}
+	if cfg.ReadTimeout <= 0 {
+		cfg.ReadTimeout = DefaultReadTimeout
+	}
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = DefaultWriteTimeout
+	}
+
 	return &HTTPTransport{
 		cfg: cfg,
 	}
@@ -96,10 +103,11 @@ func (s *HTTPTransport) createPoster(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Type", "image/jpeg")
-	c.Writer.Write(img)
-	// // 返回图片，json格式
-	// c.JSON(http.StatusOK, gin.H{
-	// 	"image": img,
-	// })
+	// 直接输出图片方便测试
+	// c.Header("Content-Type", "image/jpeg")
+	// c.Writer.Write(img)
+	// 返回图片，json格式
+	c.JSON(http.StatusOK, gin.H{
+		"image": img,
+	})
 }

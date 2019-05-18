@@ -20,9 +20,9 @@ type PosterParam struct {
 
 // Background 背景 - Image和ImageUrl至少传一个
 type Background struct {
-	Image    []byte `json:"image,omitempty"`     // 图片base64值
-	ImageURL string `json:"image_url,omitempty"` // 背景图片地址
-	Color    string `json:"color,omitempty"`     // 背景色
+	Image     []byte `json:"image,omitempty"`      // 图片base64值
+	ImageURL  string `json:"image_url,omitempty"`  // 背景图片地址
+	ImageType string `json:"image_type,omitempty"` // 图片格式类型 jpg | png
 }
 
 // Text 海报文字
@@ -71,7 +71,7 @@ type Image struct {
 	Height    int     `json:"height,omitempty"`     // 高度
 	Padding   int     `json:"padding,omitempty"`    // 内边距 - 当图片旋转时有用
 	Angle     float64 `json:"angle,omitempty"`      // 旋转角度 - 顺时针方向 - 弧度
-	Color     string  `json:"color,omitempty"`      // 背景色
+	Color     string  `json:"color,omitempty"`      // 背景色
 	ImageType string  `json:"image_type,omitempty"` // 图片格式类型 jpg | png
 	Image     []byte  `json:"image,omitempty"`      // 图片base64值
 	ImageURL  string  `json:"image_url,omitempty"`  // 背景图片地址

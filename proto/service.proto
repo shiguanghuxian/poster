@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package proto;
+option java_package = "cn.zuoxiupeng.poster";
+option java_outer_classname = "Poster";
+
+service Poster {
+    rpc CreatePoster(CreatePosterRequest) returns (CreatePosterReply) {}
+}
+
+// 创建海报请求参数
+message CreatePosterRequest {
+    int32           width      = 1;
+    int32           height     = 2;
+    Background      background = 3;
+    repeated Text   texts      = 4;
+    repeated Image  sub_images = 5;
+}
+
+// 海报生成结果
+message CreatePosterReply {
+    bytes image = 1;
+}
+
+// 背景 image和image_url至少传一个
+message Background {
+    bytes image = 1;
+    string image_url = 2;
+}
+
+// Text 海报文字
+message Text {
+    int32    top        = 1;
+    int32    left       = 2;
+    int32    width      = 3;
+    int32    height     = 4;
+    int32    line_count = 5;
+    string   content    = 6;
+    string   font_name  = 7;
+    double   font_size  = 8;
+    double   line_height= 9;
+    string   font_color = 10;
+}
+
+// 海报贴图
+message Image {
+    int32   top        = 1;
+    int32   left       = 2;
+    int32   width      = 3;
+    int32   height     = 4;
+    int32   padding    = 5;
+    double  angle      = 6;
+    string  color      = 7;
+    string  image_type = 8;
+    bytes   image      = 9;
+    string  image_url  = 10;
+}

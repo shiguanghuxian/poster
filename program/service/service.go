@@ -10,11 +10,11 @@ import (
 	"image/png"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"code.google.com/p/graphics-go/graphics"
 	"github.com/anthonynsimon/bild/transform"
@@ -53,8 +53,8 @@ func NewService(param *PosterParam) (s *Service, err error) {
 		err = errors.New("The background image url address and background image base64 value cannot be empty")
 		return
 	}
-	if param.Background.Color == "" {
-		param.Background.Color = "#FFFFFF"
+	if param.Background.ImageType == "" {
+		param.Background.ImageType = "jpg"
 	}
 	// 文本
 	if len(param.Texts) > 0 {
@@ -87,9 +87,6 @@ func NewService(param *PosterParam) (s *Service, err error) {
 				err = errors.New("SubImage exists image url and image base64 are both empty")
 				return
 			}
-			if subImage.Color == "" {
-				subImage.Color = "#FFFFFF"
-			}
 		}
 	}
 	s = &Service{
@@ -101,42 +98,35 @@ func NewService(param *PosterParam) (s *Service, err error) {
 
 // DrawPoster 生成海报
 func (s *Service) DrawPoster() (img []byte, err error) {
-	/* 生成画布，并涂色 */
-	// 解析背景色
-	backgroundColor, err := common.HexToColor(s.Param.Background.Color)
-	if err != nil {
-		logger.Log.Errorw("解析背景色错误", "err", err)
-		return
-	}
-	// 涂色
+	startTime := time.Now()
+	defer func() {
+		logger.Log.Infow("生成图片耗时", "time", fmt.Sprintf("%d ms", time.Now().Sub(startTime).Nanoseconds()/100000))
+	}()
+
+	/* 生成画布 */
 	rgba := image.NewRGBA(image.Rect(0, 0, s.Param.Width, s.Param.Height))
-	for x := 0; x < rgba.Bounds().Dx(); x++ {
-		for y := 0; y < rgba.Bounds().Dy(); y++ {
-			rgba.Set(x, y, backgroundColor)
-		}
-	}
 	// 背景图片拉伸至画布大小
 	backgroundImgReader, err := s.getBackgroundImg(s.Param.Background.Image, s.Param.Background.ImageURL)
 	if err != nil {
 		logger.Log.Errorw("获取背景图错误1", "err", err)
 		return
 	}
-	backgroundImg, _, err := image.Decode(backgroundImgReader)
+	var backgroundImg image.Image
+	if s.Param.Background.ImageType == "png" {
+		backgroundImg, err = png.Decode(backgroundImgReader)
+	} else if s.Param.Background.ImageType == "jpg" || s.Param.Background.ImageType == "jpeg" {
+		backgroundImg, err = jpeg.Decode(backgroundImgReader)
+	} else {
+		logger.Log.Warnw("背景图片，不支持的图片格式类型，格式必须是png或jpg，格式不带点", "ImageType", s.Param.Background.ImageType)
+		err = errors.New("Unsupported image types -- " + s.Param.Background.ImageType)
+		return
+	}
 	if err != nil {
 		logger.Log.Errorw("获取背景图错误2", "err", err)
 		return
 	}
-	// 拉伸
-	var resizedw, resizedh int
-	if s.Param.Width/s.Param.Height < backgroundImg.Bounds().Dx()/backgroundImg.Bounds().Dy() {
-		resizedw = int(backgroundImg.Bounds().Dx() * s.Param.Height / backgroundImg.Bounds().Dy())
-		resizedh = s.Param.Height
-	} else {
-		resizedh = int(backgroundImg.Bounds().Dy() * s.Param.Width / backgroundImg.Bounds().Dx())
-		resizedw = s.Param.Width
-	}
-	picResized := transform.Resize(backgroundImg, resizedw, resizedh, transform.Linear)
-
+	// 缩放到画布大小
+	picResized := resize.Resize(uint(s.Param.Width), uint(s.Param.Height), backgroundImg, resize.Lanczos3)
 	// 拉伸至中心完全显示
 	draw.Draw(rgba, image.Rect(0, 0, s.Param.Width, s.Param.Height), picResized,
 		image.Point{int((picResized.Bounds().Dx() - s.Param.Width) / 2), int((picResized.Bounds().Dy() - s.Param.Height) / 2)},
@@ -168,15 +158,19 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 
 		// 旋转
 		if subImg.Angle != 0 {
-			dst := image.NewRGBA(image.Rect(0, 0, subImg.Width, subImg.Height))
-			subBColor, err := common.HexToColor(subImg.Color)
-
-			for x := 0; x < dst.Bounds().Dx(); x++ {
-				for y := 0; y < dst.Bounds().Dy(); y++ {
-					dst.Set(x, y, subBColor)
+			dst := image.NewCMYK(image.Rect(0, 0, subImg.Width, subImg.Height))
+			if subImg.Color != "" {
+				subBColor, err := common.HexToColor(subImg.Color)
+				if err != nil {
+					logger.Log.Errorw("子图背景色解析错误", "err", err, "subKey", subKey, "subBColor", subBColor)
+					return nil, err
+				}
+				for x := 0; x < dst.Bounds().Dx(); x++ {
+					for y := 0; y < dst.Bounds().Dy(); y++ {
+						dst.Set(x, y, subBColor)
+					}
 				}
 			}
-
 			err = graphics.Rotate(dst, subImage, &graphics.RotateOptions{gg.Radians(subImg.Angle)})
 			if err != nil {
 				logger.Log.Errorw("图片旋转错误", "err", err, "subKey", subKey)
@@ -199,7 +193,7 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 	for _, txt := range s.Param.Texts {
 		// 换行后的文本
 		texts := txt.GetTest()
-		log.Println(texts)
+		// log.Println(texts)
 		// 字体
 		font, err := s.getFont(txt.FontName)
 		if err != nil {

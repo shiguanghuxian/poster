@@ -42,6 +42,7 @@ func New() (*Program, error) {
 func (p *Program) Run() error {
 	// 启动http服务
 	if p.cfg.HTTP.Enable == true {
+		logger.Log.Infow("http服务启动", "address", p.cfg.HTTP.Address, "port", p.cfg.HTTP.Port)
 		go func() {
 			err := transport.NewHTTPTransport(p.cfg.HTTP).ListenAndServe(p.cfg.Debug)
 			if err != nil {
@@ -52,7 +53,13 @@ func (p *Program) Run() error {
 
 	// 启动grpc服务
 	if p.cfg.GRPC.Enable == true {
-
+		logger.Log.Infow("grpc服务启动", "address", p.cfg.GRPC.Address, "port", p.cfg.GRPC.Port)
+		go func() {
+			err := transport.NewGRPCTransport(p.cfg.GRPC).ListenAndServe(p.cfg.Debug)
+			if err != nil {
+				panic(err)
+			}
+		}()
 	}
 
 	return nil

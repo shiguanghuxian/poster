@@ -1,0 +1,16 @@
+debug = true
+log_path = ""
+
+# http 监听配置
+[http]
+enable = true
+address = "0.0.0.0"
+port = 11260
+read_timeout = 10
+write_timeout = 30
+
+# grpc 监听配置
+[grpc]
+enable = false
+address = "0.0.0.0"
+port = 10280

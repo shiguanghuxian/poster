@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  poster:
+    image: shiguanghuxian/poster
+    volumes:
+      - ./bin/config/cfg.toml:/app/config/cfg.toml
+      - ./bin/logs:/app/logs
+    ports:
+      - "10280:10280"
+

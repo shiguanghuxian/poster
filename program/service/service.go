@@ -24,11 +24,13 @@ import (
 	"github.com/nfnt/resize"
 	"github.com/shiguanghuxian/poster/program/common"
 	"github.com/shiguanghuxian/poster/program/logger"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 // Service 具体生成海报业务代码
 type Service struct {
 	Param *PosterParam // 绘图参数
+	rgba  *image.RGBA  // 绘制图片对象
 }
 
 // NewService 创建绘图对象 - 检查参数
@@ -89,10 +91,29 @@ func NewService(param *PosterParam) (s *Service, err error) {
 			}
 		}
 	}
+
+	// 子二维码
+	if len(param.SubQrCode) > 0 {
+		for _, subQrCode := range param.SubQrCode {
+			if subQrCode.Content == "" {
+				err = errors.New("QRcode content cannot be empty")
+				return
+			}
+			if subQrCode.BackgroundColor == "" {
+				subQrCode.BackgroundColor = "#FFFFFF"
+			}
+			if subQrCode.ForegroundColor == "" {
+				subQrCode.ForegroundColor = "#000000"
+			}
+			if subQrCode.Width == 0 {
+				// subQrCode.Width = 100
+			}
+		}
+	}
+
 	s = &Service{
 		Param: param,
 	}
-
 	return
 }
 
@@ -100,11 +121,11 @@ func NewService(param *PosterParam) (s *Service, err error) {
 func (s *Service) DrawPoster() (img []byte, err error) {
 	startTime := time.Now()
 	defer func() {
-		logger.Log.Infow("生成图片耗时", "time", fmt.Sprintf("%d ms", time.Now().Sub(startTime).Nanoseconds()/100000))
+		logger.Log.Infow("生成图片耗时", "time", fmt.Sprintf("%dms", time.Now().Sub(startTime).Nanoseconds()/1000000))
 	}()
 
 	/* 生成画布 */
-	rgba := image.NewRGBA(image.Rect(0, 0, s.Param.Width, s.Param.Height))
+	s.rgba = image.NewRGBA(image.Rect(0, 0, s.Param.Width, s.Param.Height))
 	// 背景图片拉伸至画布大小
 	backgroundImgReader, err := s.getBackgroundImg(s.Param.Background.Image, s.Param.Background.ImageURL)
 	if err != nil {
@@ -128,16 +149,46 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 	// 缩放到画布大小
 	picResized := resize.Resize(uint(s.Param.Width), uint(s.Param.Height), backgroundImg, resize.Lanczos3)
 	// 拉伸至中心完全显示
-	draw.Draw(rgba, image.Rect(0, 0, s.Param.Width, s.Param.Height), picResized,
+	draw.Draw(s.rgba, image.Rect(0, 0, s.Param.Width, s.Param.Height), picResized,
 		image.Point{int((picResized.Bounds().Dx() - s.Param.Width) / 2), int((picResized.Bounds().Dy() - s.Param.Height) / 2)},
 		draw.Src)
 
-	/* 插入子图片 */
+	/* 添加子图片 */
+	err = s.drawSubImages()
+	if err != nil {
+		return nil, err
+	}
+
+	/* 添加二维码 */
+	err = s.drawSubQrCodes()
+	if err != nil {
+		return nil, err
+	}
+
+	/* 添加文本 */
+	err = s.drawSubTexts()
+	if err != nil {
+		return nil, err
+	}
+
+	// 输出图片到字节
+	outImg := s.rgba.SubImage(s.rgba.Bounds())
+	f := bytes.NewBuffer(make([]byte, 0))
+	err = jpeg.Encode(f, outImg, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return ioutil.ReadAll(f)
+}
+
+// 绘制子图片
+func (s *Service) drawSubImages() (err error) {
 	for subKey, subImg := range s.Param.SubImages {
 		sub, err := s.getBackgroundImg(subImg.Image, subImg.ImageURL)
 		if err != nil {
 			logger.Log.Errorw("解析子图错误1", "err", err, "subKey", subKey)
-			return nil, err
+			return err
 		}
 		var subImage image.Image
 		imageType := strings.ToLower(subImg.ImageType)
@@ -151,7 +202,7 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 		}
 		if err != nil {
 			logger.Log.Errorw("解析子图错误2", "err", err, "subKey", subKey)
-			return nil, err
+			return err
 		}
 		// 图片缩放
 		subImage = resize.Resize(uint(subImg.Width-subImg.Padding), uint(subImg.Height-subImg.Padding), subImage, resize.Lanczos3)
@@ -163,7 +214,7 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 				subBColor, err := common.HexToColor(subImg.Color)
 				if err != nil {
 					logger.Log.Errorw("子图背景色解析错误", "err", err, "subKey", subKey, "subBColor", subBColor)
-					return nil, err
+					return err
 				}
 				for x := 0; x < dst.Bounds().Dx(); x++ {
 					for y := 0; y < dst.Bounds().Dy(); y++ {
@@ -173,23 +224,26 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 			}
 			err = graphics.Rotate(dst, subImage, &graphics.RotateOptions{gg.Radians(subImg.Angle)})
 			if err != nil {
-				logger.Log.Errorw("图片旋转错误", "err", err, "subKey", subKey)
-				return nil, err
+				logger.Log.Errorw("图片旋转错误", "err", err, "subKey", subKey, "method", "drawSubQrCodes")
+				return err
 			}
 			subImage = dst
 		}
-		qrcodeResized := transform.Resize(subImage, subImg.Width, subImg.Height, transform.Linear)
-		draw.Draw(rgba,
+		imgResized := transform.Resize(subImage, subImg.Width, subImg.Height, transform.Linear)
+		draw.Draw(s.rgba,
 			image.Rectangle{
 				image.Point{subImg.Left + subImg.Width/2, subImg.Top + subImg.Height/2},
-				rgba.Bounds().Max,
+				s.rgba.Bounds().Max,
 			},
-			qrcodeResized,
+			imgResized,
 			image.Point{0, 0},
 			draw.Src)
 	}
+	return
+}
 
-	/* 添加文本 */
+// 绘制文本
+func (s *Service) drawSubTexts() (err error) {
 	for _, txt := range s.Param.Texts {
 		// 换行后的文本
 		texts := txt.GetTest()
@@ -198,18 +252,18 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 		font, err := s.getFont(txt.FontName)
 		if err != nil {
 			logger.Log.Errorw("获取字体错误", "err", err)
-			return nil, err
+			return err
 		}
 		c := freetype.NewContext()
 		c.SetFont(font)
 		c.SetFontSize(txt.FontSize)
 		c.SetClip(image.Rect(txt.Left, txt.Top, txt.Left+txt.Width, txt.Top+txt.Height)) //文字区域
-		c.SetDst(rgba)
+		c.SetDst(s.rgba)
 		// 字体颜色
 		fontColor, err := common.HexToColor(txt.FontColor)
 		if err != nil {
 			logger.Log.Errorw("解析字体颜色错误", "err", err, "FontColor", txt.FontColor)
-			return nil, err
+			return err
 		}
 		c.SetSrc(image.NewUniform(fontColor))
 
@@ -219,16 +273,49 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 			pt.Y += c.PointToFixed(txt.FontSize * txt.LineHeight)
 		}
 	}
+	return
+}
 
-	// 输出图片到字节
-	outImg := rgba.SubImage(rgba.Bounds())
-	f := bytes.NewBuffer(make([]byte, 0))
-	err = jpeg.Encode(f, outImg, nil)
-	if err != nil {
-		return nil, err
+// 绘制二维码
+func (s *Service) drawSubQrCodes() (err error) {
+	for k, v := range s.Param.SubQrCode {
+		// 生成二维码
+		qr, err := qrcode.New(v.Content, qrcode.High)
+		if err != nil {
+			return err
+		}
+		backgroundColor, err := common.HexToColor(v.BackgroundColor)
+		if err != nil {
+			return err
+		}
+		foregroundColor, err := common.HexToColor(v.ForegroundColor)
+		if err != nil {
+			return err
+		}
+		qr.BackgroundColor = backgroundColor
+		qr.ForegroundColor = foregroundColor
+		qrImg := qr.Image(v.Width)
+		// 旋转图片
+		if v.Angle != 0 {
+			dst := image.NewCMYK(image.Rect(0, 0, v.Width, v.Width))
+			err = graphics.Rotate(dst, qrImg, &graphics.RotateOptions{gg.Radians(v.Angle)})
+			if err != nil {
+				logger.Log.Errorw("图片旋转错误", "err", err, "subKey", k, "method", "drawSubQrCodes")
+				return err
+			}
+			qrImg = dst
+		}
+		// 绘入主图
+		draw.Draw(s.rgba,
+			image.Rectangle{
+				image.Point{v.Left + v.Width/2, v.Top + v.Width/2},
+				s.rgba.Bounds().Max,
+			},
+			qrImg,
+			image.Point{0, 0},
+			draw.Src)
 	}
-
-	return ioutil.ReadAll(f)
+	return
 }
 
 // getBackgroundImg 获取背景图

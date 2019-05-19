@@ -64,10 +64,12 @@ func (ps *PosterServer) CreatePoster(ctx context.Context, req *proto.CreatePoste
 		param.Texts = make([]*service.Text, 0)
 		for _, v := range req.Texts {
 			param.Texts = append(param.Texts, &service.Text{
-				Top:        int(v.Top),
-				Left:       int(v.Left),
-				Width:      int(v.Width),
-				Height:     int(v.Height),
+				SubObject: service.SubObject{
+					Top:    int(v.Top),
+					Left:   int(v.Left),
+					Width:  int(v.Width),
+					Height: int(v.Height),
+				},
 				LineCount:  int(v.LineCount),
 				Content:    v.Content,
 				FontName:   v.FontName,
@@ -82,10 +84,12 @@ func (ps *PosterServer) CreatePoster(ctx context.Context, req *proto.CreatePoste
 		param.SubImages = make([]*service.Image, 0)
 		for _, v := range req.SubImages {
 			param.SubImages = append(param.SubImages, &service.Image{
-				Top:       int(v.Top),
-				Left:      int(v.Left),
-				Width:     int(v.Width),
-				Height:    int(v.Height),
+				SubObject: service.SubObject{
+					Top:    int(v.Top),
+					Left:   int(v.Left),
+					Width:  int(v.Width),
+					Height: int(v.Height),
+				},
 				Padding:   int(v.Padding),
 				Angle:     v.Angle,
 				Color:     v.Color,

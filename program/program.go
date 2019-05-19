@@ -1,7 +1,6 @@
 package program
 
 import (
-	"net/http"
 	"os/exec"
 	"runtime"
 
@@ -13,7 +12,6 @@ import (
 // Program 主程序
 type Program struct {
 	cfg *config.Config
-	s   *http.Server
 }
 
 // New 创建主程序
@@ -67,9 +65,7 @@ func (p *Program) Run() error {
 
 // Stop 停止服务
 func (p *Program) Stop() {
-	if p.s != nil {
-		p.s.Close()
-	}
+	logger.Log.Sync()
 }
 
 // 打开url

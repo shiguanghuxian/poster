@@ -78,7 +78,6 @@ func (s *HTTPTransport) middleware() gin.HandlerFunc {
 
 // 生成一个海报
 func (s *HTTPTransport) createPoster(c *gin.Context) {
-	// 捕获异常
 	req := new(service.PosterParam)
 	err := c.Bind(req)
 	if err != nil {
@@ -104,10 +103,10 @@ func (s *HTTPTransport) createPoster(c *gin.Context) {
 	}
 
 	// 直接输出图片方便测试
-	// c.Header("Content-Type", "image/jpeg")
-	// c.Writer.Write(img)
-	// 返回图片，json格式
-	c.JSON(http.StatusOK, gin.H{
-		"image": img,
-	})
+	c.Header("Content-Type", "image/jpeg")
+	c.Writer.Write(img)
+	// // 返回图片，json格式
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"image": img,
+	// })
 }

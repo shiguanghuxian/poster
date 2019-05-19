@@ -11,12 +11,13 @@ const (
 
 // PosterParam 生成海报参数
 type PosterParam struct {
-	Width      int         `json:"width,omitempty"`       // 画布宽度
-	Height     int         `json:"height,omitempty"`      // 画布高度
-	Background *Background `json:"background,omitempty"`  // 背景图片
-	Texts      []*Text     `json:"texts,omitempty"`       // 文本列表
-	SubImages  []*Image    `json:"sub_images,omitempty"`  // 需要插入的子图片列表
-	SubQrCode  []*QrCode   `json:"sub_qr_code,omitempty"` // 需要每次都动态生成的二维码信息
+	Width       int         `json:"width,omitempty"`          // 画布宽度
+	Height      int         `json:"height,omitempty"`         // 画布高度
+	Background  *Background `json:"background,omitempty"`     // 背景图片
+	Texts       []*Text     `json:"texts,omitempty"`          // 文本列表
+	SubImages   []*Image    `json:"sub_images,omitempty"`     // 需要插入的子图片列表
+	SubQrCode   []*QrCode   `json:"sub_qr_code,omitempty"`    // 需要每次都动态生成的二维码信息
+	SubWxQrCode []*WxQrCode `json:"sub_wx_qr_code,omitempty"` // 微信小程序码
 }
 
 // Background 背景 - Image和ImageUrl至少传一个
@@ -87,4 +88,17 @@ type QrCode struct {
 	BackgroundColor string  `json:"background_color,omitempty"` // 背景色 - 可为空 - 默认白色
 	ForegroundColor string  `json:"foreground_color,omitempty"` // 前景色 - 可为空 - 默认黑色
 	Content         string  `json:"content,omitempty"`          // 二维码内容
+}
+
+// WxQrCode 小程序码自动生成
+type WxQrCode struct {
+	SubObject
+	Angle float64 `json:"angle,omitempty"` // 旋转角度 - 顺时针方向 - 弧度
+	// 一下参数直接传给微信
+	AccessToken string `json:"access_token,omitempty"` // 海报生成服务不负责保存access_token，请每次都传递可以access_token
+	Scene       string `json:"scene,omitempty"`
+	Page        string `json:"page,omitempty"`
+	AutoColor   bool   `json:"auto_color,omitempty"`
+	LineColor   string `json:"line_color,omitempty"`
+	IsHyaline   bool   `json:"is_hyaline,omitempty"`
 }

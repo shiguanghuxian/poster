@@ -2,9 +2,11 @@ package service
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"image/jpeg"
 	"image/png"
@@ -106,7 +108,22 @@ func NewService(param *PosterParam) (s *Service, err error) {
 				subQrCode.ForegroundColor = "#000000"
 			}
 			if subQrCode.Width == 0 {
-				// subQrCode.Width = 100
+				subQrCode.Width = 100
+			}
+		}
+	}
+
+	// 子小程序码
+	if len(param.SubWxQrCode) > 0 {
+		for _, subWxQrCode := range param.SubWxQrCode {
+			if subWxQrCode.AccessToken == "" {
+				return nil, errors.New("小程序码生成，AccessToken参数不能为空")
+			}
+			if subWxQrCode.Width == 0 {
+				subWxQrCode.Width = 100
+			}
+			if subWxQrCode.LineColor == "" {
+				subWxQrCode.LineColor = "#000000"
 			}
 		}
 	}
@@ -161,6 +178,12 @@ func (s *Service) DrawPoster() (img []byte, err error) {
 
 	/* 添加二维码 */
 	err = s.drawSubQrCodes()
+	if err != nil {
+		return nil, err
+	}
+
+	/* 添加小程序码 */
+	err = s.drawSubWxQrCodes()
 	if err != nil {
 		return nil, err
 	}
@@ -282,14 +305,17 @@ func (s *Service) drawSubQrCodes() (err error) {
 		// 生成二维码
 		qr, err := qrcode.New(v.Content, qrcode.High)
 		if err != nil {
+			logger.Log.Errorw("生成二维码错误", "err", err)
 			return err
 		}
 		backgroundColor, err := common.HexToColor(v.BackgroundColor)
 		if err != nil {
+			logger.Log.Errorw("解析二维码背景色错误", "err", err)
 			return err
 		}
 		foregroundColor, err := common.HexToColor(v.ForegroundColor)
 		if err != nil {
+			logger.Log.Errorw("解析二维码前景色错误", "err", err)
 			return err
 		}
 		qr.BackgroundColor = backgroundColor
@@ -309,6 +335,67 @@ func (s *Service) drawSubQrCodes() (err error) {
 		draw.Draw(s.rgba,
 			image.Rectangle{
 				image.Point{v.Left + v.Width/2, v.Top + v.Width/2},
+				s.rgba.Bounds().Max,
+			},
+			qrImg,
+			image.Point{0, 0},
+			draw.Src)
+	}
+	return
+}
+
+// 绘制小程序码
+func (s *Service) drawSubWxQrCodes() (err error) {
+	for k, v := range s.Param.SubWxQrCode {
+		lineColor, err := common.HexToColor(v.LineColor)
+		if err != nil {
+			logger.Log.Errorw("解析小程序码颜色错误", "err", err)
+			return err
+		}
+		lineColorRGB := lineColor.(color.RGBA)
+		req := map[string]interface{}{
+			"scene":      v.Scene,
+			"page":       v.Page,
+			"width":      v.Width,
+			"auto_color": v.AutoColor,
+			"line_color": map[string]int{
+				"r": int(lineColorRGB.R),
+				"g": int(lineColorRGB.G),
+				"b": int(lineColorRGB.B),
+			},
+			"is_hyaline": v.IsHyaline,
+		}
+		reqRed, _ := json.Marshal(req)
+		wxQrCodeUrl := "https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=" + v.AccessToken
+		// 请求接口生成小程序码
+		resp, err := http.Post(wxQrCodeUrl, "application/json", bytes.NewReader(reqRed))
+		if err != nil {
+			respBody, _ := ioutil.ReadAll(resp.Body)
+			logger.Log.Errorw("请求获取小程序码错误", "err", err, "body", string(respBody))
+			return err
+		}
+		qrImg, err := jpeg.Decode(resp.Body)
+		if err != nil {
+			logger.Log.Errorw("小程序码返回body解析错误", "err", err)
+			return err
+		}
+		// 图片缩放
+		qrImg = resize.Resize(uint(v.Width), uint(v.Width), qrImg, resize.Lanczos3)
+
+		// 旋转图片
+		if v.Angle != 0 {
+			dst := image.NewCMYK(image.Rect(0, 0, v.Width, v.Width))
+			err = graphics.Rotate(dst, qrImg, &graphics.RotateOptions{gg.Radians(v.Angle)})
+			if err != nil {
+				logger.Log.Errorw("图片旋转错误", "err", err, "subKey", k, "method", "drawSubWxQrCodes")
+				return err
+			}
+			qrImg = dst
+		}
+		// 绘入主图
+		draw.Draw(s.rgba,
+			image.Rectangle{
+				image.Point{v.Left + qrImg.Bounds().Dx()/2, v.Top + qrImg.Bounds().Dy()/2},
 				s.rgba.Bounds().Max,
 			},
 			qrImg,

@@ -138,6 +138,10 @@ func NewService(param *PosterParam) (s *Service, err error) {
 func (s *Service) DrawPoster() (img []byte, err error) {
 	startTime := time.Now()
 	defer func() {
+		if err := recover(); err != nil {
+			logger.Log.Errorw("生成图片异常", "err", err)
+			return
+		}
 		logger.Log.Infow("生成图片耗时", "time", fmt.Sprintf("%dms", time.Now().Sub(startTime).Nanoseconds()/1000000))
 	}()
 
@@ -370,11 +374,27 @@ func (s *Service) drawSubWxQrCodes() (err error) {
 		// 请求接口生成小程序码
 		resp, err := http.Post(wxQrCodeUrl, "application/json", bytes.NewReader(reqRed))
 		if err != nil {
-			respBody, _ := ioutil.ReadAll(resp.Body)
-			logger.Log.Errorw("请求获取小程序码错误", "err", err, "body", string(respBody))
+			logger.Log.Errorw("请求获取小程序码错误", "err", err)
 			return err
 		}
-		qrImg, err := jpeg.Decode(resp.Body)
+
+		// copy body 如果是json证明可能遇到了错误
+		wxBody := bytes.NewBuffer(make([]byte, 0))
+		_, err = io.Copy(wxBody, resp.Body)
+		if err != nil {
+			logger.Log.Errorw("复制微信生成小程序码错误", "err", err)
+			return err
+		}
+		wxErr := make(map[string]interface{}, 0)
+		err = json.Unmarshal(wxBody.Bytes(), &wxErr)
+		if err == nil {
+			err = fmt.Errorf("errcode: %v, errmsg: %v", wxErr["errcode"], wxErr["errmsg"])
+			logger.Log.Errorw("调用微信生成小程序码错误", "err", err)
+			return err
+		}
+		err = nil
+		// 解析为图片
+		qrImg, err := jpeg.Decode(wxBody)
 		if err != nil {
 			logger.Log.Errorw("小程序码返回body解析错误", "err", err)
 			return err

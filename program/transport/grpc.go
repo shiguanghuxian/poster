@@ -99,6 +99,41 @@ func (ps *PosterServer) CreatePoster(ctx context.Context, req *proto.CreatePoste
 			})
 		}
 	}
+	// 二维码
+	if len(req.SubQrCode) > 0 {
+		for _, v := range req.SubQrCode {
+			param.SubQrCode = append(param.SubQrCode, &service.QrCode{
+				SubObject: service.SubObject{
+					Top:   int(v.Top),
+					Left:  int(v.Left),
+					Width: int(v.Width),
+				},
+				Angle:           v.Angle,
+				BackgroundColor: v.BackgroundColor,
+				ForegroundColor: v.ForegroundColor,
+				Content:         v.Content,
+			})
+		}
+	}
+	// 小程序码
+	if len(req.SubWxQrCode) > 0 {
+		for _, v := range req.SubWxQrCode {
+			param.SubWxQrCode = append(param.SubWxQrCode, &service.WxQrCode{
+				SubObject: service.SubObject{
+					Top:   int(v.Top),
+					Left:  int(v.Left),
+					Width: int(v.Width),
+				},
+				Angle:       v.Angle,
+				AccessToken: v.AccessToken,
+				Scene:       v.Scene,
+				Page:        v.Page,
+				AutoColor:   v.AutoColor,
+				LineColor:   v.LineColor,
+				IsHyaline:   v.IsHyaline,
+			})
+		}
+	}
 
 	// 生成图片
 	srv, err := service.NewService(param)

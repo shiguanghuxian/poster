@@ -15,6 +15,8 @@ message CreatePosterRequest {
     Background      background = 3;
     repeated Text   texts      = 4;
     repeated Image  sub_images = 5;
+    repeated QrCode sub_qr_code = 6;
+    repeated WxQrCode sub_wx_qr_code = 7;
 }
 
 // 海报生成结果
@@ -54,4 +56,30 @@ message Image {
     string  image_type = 8;
     bytes   image      = 9;
     string  image_url  = 10;
+}
+
+// 二维码
+message QrCode {
+    int32   top        = 1;
+    int32   left       = 2;
+    int32   width      = 3;
+    double  angle      = 4; // 旋转角度
+    string  background_color = 5; // 背景色 - 可为空 - 默认白色
+    string  foreground_color = 6; // 前景色 - 可为空 - 默认黑色
+    string  content    = 7; // 二维码内容
+}
+
+// 小程序码
+message WxQrCode {
+    int32   top        = 1;
+    int32   left       = 2;
+    int32   width      = 3;
+    double  angle      = 4; // 旋转角度
+    // 以下参数用于调用微信接口
+    string  access_token= 5;
+    string  scene      = 6;
+    string  page       = 7;
+    bool    auto_color = 8;
+    string  line_color = 9;
+    bool    is_hyaline = 10;
 }
